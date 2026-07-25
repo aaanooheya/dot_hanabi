@@ -368,6 +368,12 @@ button, input {
   margin-bottom: 14px;
 }
 
+.gallery-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .gallery-section h2 {
   font-size: 0.95rem;
   color: var(--text-dim);

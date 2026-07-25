@@ -1,7 +1,6 @@
 import { PALETTE, createEmptyGrid, drawGridToCanvas } from './pixel-grid.js';
 import { getFireworks, getFirework, saveFirework, deleteFirework, generateId } from './storage.js';
 import { Firework } from './firework.js';
-import { encodeFirework, decodeShareCode } from './share-code.js';
 import { unlockAudio, initMuteButton, playExplosionBoom } from './sound.js';
 
 initMuteButton(document.getElementById('mute-btn'));
@@ -429,26 +428,6 @@ function renderGallery() {
       editBtn.className = 'pixel-btn';
       editBtn.addEventListener('click', () => loadDesign(fw));
 
-      const shareBtn = document.createElement('button');
-      shareBtn.textContent = '共有';
-      shareBtn.className = 'pixel-btn';
-      shareBtn.addEventListener('click', async () => {
-        let code;
-        try {
-          code = encodeFirework(fw);
-        } catch (err) {
-          alert(err.message);
-          return;
-        }
-        const url = `${location.origin}${location.pathname}?d=${code}`;
-        try {
-          await navigator.clipboard.writeText(url);
-          alert(`「${fw.name}」の共有リンクをコピーしました。貼り付けて相手に渡してください。開くだけで読み込まれます。`);
-        } catch {
-          prompt('コピーできませんでした。手動でコピーしてください:', url);
-        }
-      });
-
       const delBtn = document.createElement('button');
       delBtn.textContent = '削除';
       delBtn.className = 'danger pixel-btn';
@@ -459,7 +438,7 @@ function renderGallery() {
         renderGallery();
       });
 
-      actions.append(editBtn, shareBtn, delBtn);
+      actions.append(editBtn, delBtn);
       card.append(thumb, title, meta, launchToggle, actions);
       galleryEl.appendChild(card);
     });
@@ -478,61 +457,4 @@ function loadDesign(fw) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Accepts either a bare share code or a full share link (extracts its `d`
-// query param), so pasting either one works.
-function extractShareCode(input) {
-  const trimmed = input.trim();
-  try {
-    const url = new URL(trimmed);
-    const d = url.searchParams.get('d');
-    if (d) return d;
-  } catch {
-    // not a URL -- fall through and treat the whole input as a bare code
-  }
-  return trimmed;
-}
-
-function importFromCode(rawInput) {
-  const code = extractShareCode(rawInput);
-  if (!code) return;
-
-  let decoded;
-  try {
-    decoded = decodeShareCode(code);
-  } catch (err) {
-    alert(err.message || 'コードの読み込みに失敗しました');
-    return;
-  }
-
-  const fw = {
-    id: generateId(),
-    name: decoded.name,
-    size: decoded.size,
-    pixels: decoded.pixels,
-    enabled: true,
-    createdAt: new Date().toISOString(),
-  };
-  saveFirework(fw);
-  renderGallery();
-  loadDesign(fw);
-  alert(`「${fw.name}」を読み込んで保存しました。`);
-}
-
-document.getElementById('import-btn').addEventListener('click', () => {
-  const input = prompt('花火の共有リンクまたはコードを貼り付けてください:');
-  if (!input || !input.trim()) return;
-  importFromCode(input);
-});
-
-// If this page was opened via a share link (?d=<code>), import it
-// automatically and strip the param so a later reload doesn't repeat it.
-function tryAutoImportFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('d');
-  if (!code) return;
-  window.history.replaceState({}, '', window.location.origin + window.location.pathname);
-  importFromCode(code);
-}
-
 renderGallery();
-tryAutoImportFromUrl();
