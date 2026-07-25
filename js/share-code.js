@@ -4,15 +4,20 @@
 // Layout (plain text, no outer wrapping -- every field already uses only
 // pipe-safe characters, so wrapping the whole thing in base64 would just
 // waste ~33% more space for no benefit):
-//   H1|<size>|<hexcolor1,hexcolor2,...>|<base64url name>|<rle-pixel-data>
+//   H2|<size>|<hexcolor1,hexcolor2,...>|<base64url name>|<mode><pixel-data>
 //
 // Pixel data maps each cell to a single character: '0' for empty, or a
 // letter/digit indexing into the color list (ALPHABET[1] = colors[0], ...).
-// Runs of 5+ identical characters are RLE-compressed as "#<count>:<char>".
+// It's stored one of two ways, whichever comes out shorter for this
+// particular design:
+//   'R' + run-length-encoded full scan ("#<count>:<char>" for runs of 5+) --
+//        wins for designs with big blocks of one color (or mostly empty).
+//   'S' + a sparse coordinate list (count, then <2-char index><color> per
+//        colored cell) -- wins for a few scattered pixels on a big canvas.
 // The name is base64url of its raw UTF-8 bytes rather than percent-encoded
 // -- percent-encoding costs 3 chars per byte, base64 costs ~1.37.
 
-const FORMAT_TAG = 'H1';
+const FORMAT_TAG = 'H2';
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const RLE_MIN_RUN = 5;
 
@@ -49,6 +54,50 @@ function rleDecode(str) {
     }
   }
   return out;
+}
+
+// Fixed 2-char base62 index, big enough for any grid up to 62*62=3844 cells
+// (far past our largest 30x30 = 900 cell grid).
+function encodeIndex(n) {
+  return ALPHABET[Math.floor(n / 62)] + ALPHABET[n % 62];
+}
+
+function decodeIndex(pair) {
+  return ALPHABET.indexOf(pair[0]) * 62 + ALPHABET.indexOf(pair[1]);
+}
+
+function sparseEncode(data) {
+  const cells = [];
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] !== '0') cells.push(i);
+  }
+  let out = encodeIndex(cells.length);
+  for (const i of cells) out += encodeIndex(i) + data[i];
+  return out;
+}
+
+function sparseDecode(str, totalLen) {
+  const count = decodeIndex(str.slice(0, 2));
+  const cells = new Array(totalLen).fill('0');
+  let pos = 2;
+  for (let k = 0; k < count; k++) {
+    const i = decodeIndex(str.slice(pos, pos + 2));
+    cells[i] = str[pos + 2];
+    pos += 3;
+  }
+  return cells.join('');
+}
+
+function encodePixelField(data) {
+  const rle = 'R' + rleEncode(data);
+  const sparse = 'S' + sparseEncode(data);
+  return sparse.length < rle.length ? sparse : rle;
+}
+
+function decodePixelField(field, totalLen) {
+  const mode = field[0];
+  const body = field.slice(1);
+  return mode === 'S' ? sparseDecode(body, totalLen) : rleDecode(body);
 }
 
 function toBase64Url(str) {
@@ -107,7 +156,7 @@ export function encodeFirework(fw) {
     String(fw.size),
     colorField,
     encodeName(fw.name),
-    rleEncode(data),
+    encodePixelField(data),
   ].join('|');
 }
 
@@ -116,7 +165,7 @@ export function decodeShareCode(code) {
   if (parts.length !== 5 || parts[0] !== FORMAT_TAG) {
     throw new Error('コードの形式が正しくありません');
   }
-  const [, sizeStr, colorsStr, nameField, rle] = parts;
+  const [, sizeStr, colorsStr, nameField, pixelField] = parts;
 
   const size = Number(sizeStr);
   if (!Number.isInteger(size) || size <= 0 || size > 100) {
@@ -124,7 +173,7 @@ export function decodeShareCode(code) {
   }
 
   const colors = colorsStr.length ? colorsStr.split(',').map((c) => `#${c}`) : [];
-  const data = rleDecode(rle);
+  const data = decodePixelField(pixelField, size * size);
   if (data.length !== size * size) {
     throw new Error('コードの形式が正しくありません');
   }
