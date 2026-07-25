@@ -95,9 +95,15 @@ export class Firework {
 
   drawLaunch(ctx) {
     const stepped = stepTime(this.elapsed, TIME_STEP);
-    const t = stepped / this.launchDuration;
+    const t = Math.min(1, stepped / this.launchDuration);
     const y = snap(this.startY + (this.targetY - this.startY) * easeOutCubic(t), PIXEL_SNAP);
     const x = snap(this.x, PIXEL_SNAP);
+
+    // Trail length tracks the rocket's instantaneous speed (derivative of
+    // easeOutCubic, normalized to 1 at launch / 0 at the apex) so it
+    // shortens as the rocket decelerates instead of staying a fixed-length
+    // rigid streak that just freezes in place right before the burst.
+    const speed = (1 - t) * (1 - t);
 
     ctx.save();
     ctx.fillStyle = '#fff8d0';
@@ -109,8 +115,10 @@ export class Firework {
       { offset: 21, alpha: 0.12 },
     ];
     for (const tp of trailPixels) {
+      const off = tp.offset * speed;
+      if (off < 1) continue;
       ctx.globalAlpha = tp.alpha;
-      ctx.fillRect(x - 1.5, y + tp.offset - 1.5, 3, 3);
+      ctx.fillRect(x - 1.5, y + off - 1.5, 3, 3);
     }
     ctx.restore();
   }

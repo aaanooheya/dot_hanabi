@@ -63,17 +63,28 @@ refreshDesigns();
 window.addEventListener('storage', refreshDesigns);
 window.addEventListener('focus', refreshDesigns);
 
+const SCALE_MIN = 0.5;
+const SCALE_MAX = 1.9;
+const DISTANT_SOUND_DELAY_MS = 700; // max delay, applied at the smallest scale
+
+// Smaller (further-away-feeling) fireworks get a longer delay before their
+// boom, like real thunder lagging behind a distant flash.
+function explosionSoundDelay(scale) {
+  const t = Math.min(1, Math.max(0, (scale - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)));
+  return (1 - t) * DISTANT_SOUND_DELAY_MS;
+}
+
 function launchDesign(design, xOverride, yOverride) {
   const x = xOverride ?? randRange(width * 0.15, width * 0.85);
   const y = yOverride ?? randRange(height * 0.15, height * 0.55);
-  const scale = randRange(0.5, 1.9);
+  const scale = randRange(SCALE_MIN, SCALE_MAX);
   const fw = new Firework({
     design,
     x,
     y,
     startY: height + 10,
     scale,
-    onExplode: () => playExplosionBoom(scale),
+    onExplode: () => setTimeout(() => playExplosionBoom(scale), explosionSoundDelay(scale)),
   });
   active.push(fw);
   bumpLaunchCount();
