@@ -1,6 +1,8 @@
 const GRAVITY = 70; // px, downward drift strength during fall/fade
 const TIME_STEP = 1 / 12; // quantize motion to ~12 "frames" per second for a chunky, sprite-like feel
 const ALPHA_LEVELS = 6; // quantize opacity into bands instead of a smooth fade
+const LAUNCH_FADE_LEVELS = 3; // fewer bands than explosion fade -> punchier, more abrupt steps
+const PRE_BURST_BLACKOUT = 0.3; // seconds before the burst where the rocket snaps fully invisible
 const PIXEL_SNAP = 2; // round drawn positions to this many px for a blocky look
 
 function easeOutCubic(t) {
@@ -104,12 +106,20 @@ export class Firework {
     // shortens as the rocket decelerates instead of staying a fixed-length
     // rigid streak that just freezes in place right before the burst.
     const speed = (1 - t) * (1 - t);
-    // The trail also fades out over the flight, fully gone by the apex.
-    const fade = 1 - t;
+    // Both the rocket itself and its trail fade out over the flight,
+    // quantized into a few bands (rather than a smooth ramp) so it reads as
+    // punchy steps instead of a gradual dissolve -- then snap to fully
+    // transparent for the last stretch right before the burst, instead of
+    // lingering dimly visible up to the very last instant.
+    const timeToApex = this.launchDuration - stepped;
+    const fade = timeToApex <= PRE_BURST_BLACKOUT ? 0 : quantizeAlpha(1 - t, LAUNCH_FADE_LEVELS);
 
     ctx.save();
-    ctx.fillStyle = '#fff8d0';
-    ctx.fillRect(x - 2, y - 2, 4, 4);
+    if (fade > 0.01) {
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = '#fff8d0';
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
 
     const trailPixels = [
       { offset: 7, alpha: 0.55 },
