@@ -14,23 +14,28 @@ let size = 15;
 let grid = createEmptyGrid(size);
 let symmetry = true;
 let currentColor = PALETTE[0];
-let eraseMode = false;
+let tool = 'paint'; // 'paint' | 'erase' | 'eyedropper' | 'move'
 let currentId = null;
 let painting = false;
+
+let undoStack = [];
+let redoStack = [];
+let moveStartSnapshot = null;
+let moveStartCell = null;
 
 const gridCanvas = document.getElementById('grid-canvas');
 const gridCtx = gridCanvas.getContext('2d');
 gridCanvas.width = GRID_RESOLUTION;
 gridCanvas.height = GRID_RESOLUTION;
 
-function renderGrid() {
+function renderGrid(sourceGrid = grid) {
   const cell = GRID_RESOLUTION / size;
   gridCtx.fillStyle = '#0b1230';
   gridCtx.fillRect(0, 0, GRID_RESOLUTION, GRID_RESOLUTION);
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const c = grid[y][x];
+      const c = sourceGrid[y][x];
       if (c) {
         gridCtx.fillStyle = c;
         gridCtx.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
@@ -55,6 +60,67 @@ function renderGrid() {
 }
 renderGrid();
 
+// Undo / redo history
+const undoBtn = document.getElementById('undo-btn');
+const redoBtn = document.getElementById('redo-btn');
+
+function snapshotGrid() {
+  return grid.map((row) => row.slice());
+}
+
+function updateHistoryButtons() {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
+
+function pushHistory() {
+  undoStack.push(snapshotGrid());
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack.length = 0;
+  updateHistoryButtons();
+}
+
+function resetHistory() {
+  undoStack = [];
+  redoStack = [];
+  updateHistoryButtons();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(snapshotGrid());
+  grid = undoStack.pop();
+  updateHistoryButtons();
+  renderGrid();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(snapshotGrid());
+  grid = redoStack.pop();
+  updateHistoryButtons();
+  renderGrid();
+}
+
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
+// Shifts every pixel by (dx, dy) grid cells; content pushed outside the
+// grid is dropped rather than wrapped around.
+function shiftGrid(source, gridSize, dx, dy) {
+  const result = createEmptyGrid(gridSize);
+  for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < gridSize; x++) {
+      const sx = x - dx;
+      const sy = y - dy;
+      if (sx >= 0 && sx < gridSize && sy >= 0 && sy < gridSize) {
+        result[y][x] = source[sy][sx];
+      }
+    }
+  }
+  return result;
+}
+
 function setSize(newSize) {
   if (size === newSize) return;
   if (grid.flat().some(Boolean)) {
@@ -63,6 +129,7 @@ function setSize(newSize) {
   size = newSize;
   grid = createEmptyGrid(size);
   currentId = null;
+  resetHistory();
   document.getElementById('name-input').value = '';
   document.querySelectorAll('.size-btn').forEach((b) => {
     b.classList.toggle('active', Number(b.dataset.size) === size);
@@ -96,26 +163,89 @@ function cellFromEvent(e) {
 
 function paintAt(e) {
   const { gx, gy } = cellFromEvent(e);
-  paintCell(gx, gy, eraseMode ? null : currentColor);
+  paintCell(gx, gy, tool === 'erase' ? null : currentColor);
   renderGrid();
 }
 
+function sampleColorAt(e) {
+  const { gx, gy } = cellFromEvent(e);
+  if (gx >= 0 && gy >= 0 && gx < size && gy < size) {
+    const c = grid[gy][gx];
+    if (c) {
+      applyColorChange(c);
+      return;
+    }
+  }
+  tool = 'paint';
+  setActiveTool(activeSwatchIndex !== null ? swatchButtons[activeSwatchIndex] : null);
+}
+
 gridCanvas.addEventListener('pointerdown', (e) => {
-  painting = true;
   gridCanvas.setPointerCapture(e.pointerId);
+
+  if (tool === 'eyedropper') {
+    sampleColorAt(e);
+    return;
+  }
+  if (tool === 'move') {
+    moveStartSnapshot = snapshotGrid();
+    moveStartCell = cellFromEvent(e);
+    painting = true;
+    return;
+  }
+  painting = true;
+  pushHistory();
   paintAt(e);
 });
+
 gridCanvas.addEventListener('pointermove', (e) => {
-  if (painting) paintAt(e);
+  if (!painting) return;
+  if (tool === 'move' && moveStartSnapshot) {
+    const cur = cellFromEvent(e);
+    renderGrid(shiftGrid(moveStartSnapshot, size, cur.gx - moveStartCell.gx, cur.gy - moveStartCell.gy));
+    return;
+  }
+  paintAt(e);
 });
-window.addEventListener('pointerup', () => {
+
+window.addEventListener('pointerup', (e) => {
+  if (painting && tool === 'move' && moveStartSnapshot) {
+    const cur = cellFromEvent(e);
+    const dx = cur.gx - moveStartCell.gx;
+    const dy = cur.gy - moveStartCell.gy;
+    if (dx !== 0 || dy !== 0) {
+      undoStack.push(moveStartSnapshot);
+      redoStack.length = 0;
+      updateHistoryButtons();
+      grid = shiftGrid(moveStartSnapshot, size, dx, dy);
+    }
+    renderGrid();
+  }
   painting = false;
+  moveStartSnapshot = null;
+  moveStartCell = null;
 });
 
 // Palette
+// A session-local working copy: recoloring a swatch (via the custom color
+// picker or the eyedropper) only changes this in-memory copy, never the
+// PALETTE constant, and is never persisted -- reloading or navigating away
+// starts fresh from the original PALETTE again.
+const workingPalette = PALETTE.slice();
+let activeSwatchIndex = 0;
+
 const paletteEl = document.getElementById('palette');
+const eraseBtn = document.getElementById('erase-btn');
+const eyedropperBtn = document.getElementById('eyedropper-btn');
+const moveBtn = document.getElementById('move-btn');
 const swatchButtons = [];
-PALETTE.forEach((color, i) => {
+
+function setActiveTool(activeEl) {
+  [...swatchButtons, eraseBtn, eyedropperBtn, moveBtn].forEach((b) => b.classList.remove('active'));
+  if (activeEl) activeEl.classList.add('active');
+}
+
+workingPalette.forEach((color, i) => {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'swatch pixel-btn';
@@ -123,32 +253,52 @@ PALETTE.forEach((color, i) => {
   btn.title = color;
   if (i === 0) btn.classList.add('active');
   btn.addEventListener('click', () => {
-    currentColor = color;
-    eraseMode = false;
-    setActiveSwatch(btn);
+    tool = 'paint';
+    activeSwatchIndex = i;
+    currentColor = workingPalette[i];
+    customColorInput.value = workingPalette[i];
+    setActiveTool(btn);
   });
   paletteEl.appendChild(btn);
   swatchButtons.push(btn);
 });
 
-const eraseBtn = document.getElementById('erase-btn');
-function setActiveSwatch(activeEl) {
-  swatchButtons.forEach((s) => s.classList.remove('active'));
-  eraseBtn.classList.remove('active');
-  activeEl.classList.add('active');
-}
 eraseBtn.addEventListener('click', () => {
-  eraseMode = true;
-  swatchButtons.forEach((s) => s.classList.remove('active'));
-  eraseBtn.classList.add('active');
+  tool = 'erase';
+  setActiveTool(eraseBtn);
 });
+
+eyedropperBtn.addEventListener('click', () => {
+  tool = 'eyedropper';
+  setActiveTool(eyedropperBtn);
+});
+
+moveBtn.addEventListener('click', () => {
+  tool = 'move';
+  setActiveTool(moveBtn);
+});
+
+// Shared by the custom color picker and the eyedropper: whichever palette
+// swatch is currently selected gets recolored to match, instead of the new
+// color living outside the palette.
+function applyColorChange(newColor) {
+  tool = 'paint';
+  currentColor = newColor;
+  customColorInput.value = newColor;
+  if (activeSwatchIndex !== null) {
+    workingPalette[activeSwatchIndex] = newColor;
+    const btn = swatchButtons[activeSwatchIndex];
+    btn.style.background = newColor;
+    btn.title = newColor;
+    setActiveTool(btn);
+  } else {
+    setActiveTool(null);
+  }
+}
 
 const customColorInput = document.getElementById('custom-color');
 customColorInput.addEventListener('input', (e) => {
-  currentColor = e.target.value;
-  eraseMode = false;
-  swatchButtons.forEach((s) => s.classList.remove('active'));
-  eraseBtn.classList.remove('active');
+  applyColorChange(e.target.value);
 });
 
 document.getElementById('symmetry-toggle').addEventListener('change', (e) => {
@@ -158,6 +308,7 @@ document.getElementById('symmetry-toggle').addEventListener('change', (e) => {
 document.getElementById('clear-btn').addEventListener('click', () => {
   if (!grid.flat().some(Boolean)) return;
   if (!confirm('キャンバスをクリアしますか？')) return;
+  pushHistory();
   grid = createEmptyGrid(size);
   renderGrid();
 });
@@ -317,6 +468,7 @@ function loadDesign(fw) {
   size = fw.size;
   grid = fw.pixels.map((row) => row.slice());
   currentId = fw.id;
+  resetHistory();
   document.getElementById('name-input').value = fw.name;
   document.querySelectorAll('.size-btn').forEach((b) => {
     b.classList.toggle('active', Number(b.dataset.size) === size);

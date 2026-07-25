@@ -49,6 +49,26 @@ button, input {
   transform: translate(2px, 2px);
 }
 
+.pixel-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pixel-btn:disabled:active {
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.12),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.4),
+    3px 3px 0 var(--border-lo);
+  transform: none;
+}
+
+.pixel-btn.active {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: #051022;
+  font-weight: 700;
+}
+
 /* ---------- Sky page ---------- */
 
 .sky-body {

@@ -1,15 +1,18 @@
 // Packs a firework design into a short, copy-pasteable text code, and
 // unpacks it back. No backend involved: the code itself carries the data.
 //
-// Layout (before base64url wrapping):
-//   HAN1|<size>|<color1,color2,...>|<uriEncodedName>|<rle-pixel-data>
+// Layout (plain text, no outer wrapping -- every field already uses only
+// pipe-safe characters, so wrapping the whole thing in base64 would just
+// waste ~33% more space for no benefit):
+//   H1|<size>|<hexcolor1,hexcolor2,...>|<base64url name>|<rle-pixel-data>
 //
 // Pixel data maps each cell to a single character: '0' for empty, or a
 // letter/digit indexing into the color list (ALPHABET[1] = colors[0], ...).
-// Runs of 5+ identical characters are RLE-compressed as "#<count>:<char>",
-// which keeps typical sparse pixel art short.
+// Runs of 5+ identical characters are RLE-compressed as "#<count>:<char>".
+// The name is base64url of its raw UTF-8 bytes rather than percent-encoded
+// -- percent-encoding costs 3 chars per byte, base64 costs ~1.37.
 
-const FORMAT_TAG = 'HAN1';
+const FORMAT_TAG = 'H1';
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const RLE_MIN_RUN = 5;
 
@@ -53,9 +56,23 @@ function toBase64Url(str) {
 }
 
 function fromBase64Url(code) {
-  let b64 = code.trim().replace(/-/g, '+').replace(/_/g, '/');
+  let b64 = code.replace(/-/g, '+').replace(/_/g, '/');
   while (b64.length % 4) b64 += '=';
   return atob(b64);
+}
+
+function encodeName(name) {
+  const bytes = new TextEncoder().encode(name || '');
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return toBase64Url(binary);
+}
+
+function decodeName(field) {
+  if (!field) return '';
+  const binary = fromBase64Url(field);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 export function encodeFirework(fw) {
@@ -83,26 +100,19 @@ export function encodeFirework(fw) {
     }
   }
 
-  const raw = [
+  const colorField = colors.map((c) => c.replace(/^#/, '')).join(',');
+
+  return [
     FORMAT_TAG,
     String(fw.size),
-    colors.join(','),
-    encodeURIComponent(fw.name || ''),
+    colorField,
+    encodeName(fw.name),
     rleEncode(data),
   ].join('|');
-
-  return toBase64Url(raw);
 }
 
 export function decodeShareCode(code) {
-  let raw;
-  try {
-    raw = fromBase64Url(code);
-  } catch {
-    throw new Error('コードの形式が正しくありません');
-  }
-
-  const parts = raw.split('|');
+  const parts = (code || '').trim().split('|');
   if (parts.length !== 5 || parts[0] !== FORMAT_TAG) {
     throw new Error('コードの形式が正しくありません');
   }
@@ -113,7 +123,7 @@ export function decodeShareCode(code) {
     throw new Error('コードの形式が正しくありません');
   }
 
-  const colors = colorsStr.length ? colorsStr.split(',') : [];
+  const colors = colorsStr.length ? colorsStr.split(',').map((c) => `#${c}`) : [];
   const data = rleDecode(rle);
   if (data.length !== size * size) {
     throw new Error('コードの形式が正しくありません');
@@ -136,7 +146,8 @@ export function decodeShareCode(code) {
 
   let name = '無題の花火';
   try {
-    name = decodeURIComponent(nameField) || name;
+    const decoded = decodeName(nameField);
+    if (decoded) name = decoded;
   } catch {
     // keep default name if the field is somehow malformed
   }
