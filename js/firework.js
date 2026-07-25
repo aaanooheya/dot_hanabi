@@ -104,6 +104,8 @@ export class Firework {
     // shortens as the rocket decelerates instead of staying a fixed-length
     // rigid streak that just freezes in place right before the burst.
     const speed = (1 - t) * (1 - t);
+    // The trail also fades out over the flight, fully gone by the apex.
+    const fade = 1 - t;
 
     ctx.save();
     ctx.fillStyle = '#fff8d0';
@@ -116,8 +118,9 @@ export class Firework {
     ];
     for (const tp of trailPixels) {
       const off = tp.offset * speed;
-      if (off < 1) continue;
-      ctx.globalAlpha = tp.alpha;
+      const alpha = tp.alpha * fade;
+      if (off < 1 || alpha <= 0.01) continue;
+      ctx.globalAlpha = alpha;
       ctx.fillRect(x - 1.5, y + off - 1.5, 3, 3);
     }
     ctx.restore();
