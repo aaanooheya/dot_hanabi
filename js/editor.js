@@ -440,11 +440,12 @@ function renderGallery() {
           alert(err.message);
           return;
         }
+        const url = `${location.origin}${location.pathname}?d=${code}`;
         try {
-          await navigator.clipboard.writeText(code);
-          alert(`「${fw.name}」の共有コードをコピーしました。貼り付けて相手に渡してください。`);
+          await navigator.clipboard.writeText(url);
+          alert(`「${fw.name}」の共有リンクをコピーしました。貼り付けて相手に渡してください。開くだけで読み込まれます。`);
         } catch {
-          prompt('コピーできませんでした。手動でコピーしてください:', code);
+          prompt('コピーできませんでした。手動でコピーしてください:', url);
         }
       });
 
@@ -477,13 +478,27 @@ function loadDesign(fw) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-document.getElementById('import-btn').addEventListener('click', () => {
-  const code = prompt('花火の共有コードを貼り付けてください:');
-  if (!code || !code.trim()) return;
+// Accepts either a bare share code or a full share link (extracts its `d`
+// query param), so pasting either one works.
+function extractShareCode(input) {
+  const trimmed = input.trim();
+  try {
+    const url = new URL(trimmed);
+    const d = url.searchParams.get('d');
+    if (d) return d;
+  } catch {
+    // not a URL -- fall through and treat the whole input as a bare code
+  }
+  return trimmed;
+}
+
+function importFromCode(rawInput) {
+  const code = extractShareCode(rawInput);
+  if (!code) return;
 
   let decoded;
   try {
-    decoded = decodeShareCode(code.trim());
+    decoded = decodeShareCode(code);
   } catch (err) {
     alert(err.message || 'コードの読み込みに失敗しました');
     return;
@@ -501,6 +516,23 @@ document.getElementById('import-btn').addEventListener('click', () => {
   renderGallery();
   loadDesign(fw);
   alert(`「${fw.name}」を読み込んで保存しました。`);
+}
+
+document.getElementById('import-btn').addEventListener('click', () => {
+  const input = prompt('花火の共有リンクまたはコードを貼り付けてください:');
+  if (!input || !input.trim()) return;
+  importFromCode(input);
 });
 
+// If this page was opened via a share link (?d=<code>), import it
+// automatically and strip the param so a later reload doesn't repeat it.
+function tryAutoImportFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('d');
+  if (!code) return;
+  window.history.replaceState({}, '', window.location.origin + window.location.pathname);
+  importFromCode(code);
+}
+
 renderGallery();
+tryAutoImportFromUrl();
