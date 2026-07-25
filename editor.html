@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドット花火_エディタ</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="editor-body">
+  <header class="editor-header">
+    <h1>ドット花火_エディタ</h1>
+    <div class="header-controls">
+      <button id="mute-btn" class="pixel-btn" type="button">音: ON</button>
+      <a href="index.html" class="back-link">← 夜空にもどる</a>
+    </div>
+  </header>
+
+  <main class="editor-main">
+    <section class="editor-panel">
+      <div class="controls-row">
+        <div class="size-selector">
+          <span class="label">サイズ</span>
+          <button class="size-btn pixel-btn" data-size="5">5×5</button>
+          <button class="size-btn pixel-btn active" data-size="15">15×15</button>
+          <button class="size-btn pixel-btn" data-size="30">30×30</button>
+        </div>
+        <label class="symmetry-label">
+          <input type="checkbox" id="symmetry-toggle" checked>
+          点対称に描く
+        </label>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="grid-canvas"></canvas>
+      </div>
+
+      <div class="controls-row">
+        <div id="palette" class="palette"></div>
+        <button id="erase-btn" class="swatch erase pixel-btn" type="button">消</button>
+        <input type="color" id="custom-color" value="#ff3b3b" title="カスタムカラー">
+        <button id="clear-btn" class="ghost-btn pixel-btn" type="button">クリア</button>
+      </div>
+
+      <div class="controls-row">
+        <input type="text" id="name-input" placeholder="花火の名前" maxlength="30">
+        <button id="save-btn" class="primary-btn pixel-btn" type="button">保存する</button>
+        <button id="preview-btn" class="ghost-btn pixel-btn" type="button">プレビュー</button>
+      </div>
+
+      <div class="preview-wrap">
+        <canvas id="preview-canvas"></canvas>
+      </div>
+    </section>
+
+    <section class="gallery-section">
+      <div class="gallery-header">
+        <h2>保存済みの花火</h2>
+        <button id="import-btn" class="ghost-btn pixel-btn" type="button">共有コードから読み込む</button>
+      </div>
+      <div id="gallery" class="gallery"></div>
+    </section>
+  </main>
+
+  <script type="module" src="js/editor.js"></script>
+</body>
+</html>

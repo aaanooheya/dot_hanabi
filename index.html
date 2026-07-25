@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドット花火</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="sky-body">
+  <canvas id="sky"></canvas>
+
+  <div id="empty-message" class="overlay-message">
+    <p>まだ花火がないよ</p>
+    <a href="editor.html" class="cta pixel-btn">花火をつくる →</a>
+  </div>
+
+  <div class="top-right-controls">
+    <button id="mute-btn" class="pixel-btn" type="button">音: ON</button>
+    <a href="editor.html" class="edit-link pixel-btn">花火をつくる</a>
+  </div>
+
+  <div id="launch-count" class="launch-count pixel-btn">0 発</div>
+
+  <script type="module" src="js/sky.js"></script>
+</body>
+</html>
