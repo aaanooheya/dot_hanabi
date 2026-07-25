@@ -3,11 +3,13 @@
 // Playback is silently skipped until a user gesture unlocks the
 // AudioContext (browser autoplay policy) and while muted.
 
-const MUTE_KEY = 'hanabi_muted_v1';
-
 let ctx = null;
 let masterGain = null;
 let noiseBuffer = null;
+
+// Not persisted on purpose: every page (re)load -- including navigating
+// between the sky and editor pages -- should start back at muted.
+let muted = true;
 
 function ensureContext() {
   if (ctx) return ctx;
@@ -30,14 +32,12 @@ function getNoiseBuffer(c) {
   return buf;
 }
 
-// Defaults to muted until the visitor explicitly turns sound on.
 export function isMuted() {
-  const stored = localStorage.getItem(MUTE_KEY);
-  return stored === null ? true : stored === '1';
+  return muted;
 }
 
-export function setMuted(muted) {
-  localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+export function setMuted(value) {
+  muted = value;
 }
 
 // Call from any user-gesture handler (click/keydown) to satisfy autoplay

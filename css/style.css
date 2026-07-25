@@ -23,6 +23,7 @@ html, body {
   color: var(--text);
   background: var(--bg-deep);
   image-rendering: pixelated;
+  touch-action: manipulation; /* blocks pinch-zoom and double-tap-zoom, keeps panning */
 }
 
 button, input {
