@@ -152,6 +152,100 @@ button, input {
   cursor: default;
 }
 
+#chroma-btn {
+  background: var(--panel);
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 0.85rem;
+}
+
+/* Hides all chrome (buttons, empty-sky message) so only the flat
+   background color and the fireworks themselves remain visible. */
+.chroma-active .top-right-controls,
+.chroma-active .launch-count,
+.chroma-active .overlay-message {
+  display: none;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-panel {
+  background: var(--panel);
+  border: var(--px) solid var(--border);
+  box-shadow: 6px 6px 0 var(--border-lo);
+  padding: 22px;
+  max-width: min(90vw, 380px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.modal-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#recipe-qr-canvas {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  border: var(--px) solid var(--border);
+}
+
+.chroma-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chroma-swatch {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.chroma-swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px #fff;
+}
+
+#chroma-custom-color {
+  width: 36px;
+  height: 32px;
+  border: var(--px) solid var(--border);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
 /* ---------- Editor page ---------- */
 
 .editor-body {
@@ -335,6 +429,23 @@ button, input {
   font-weight: 700;
 }
 
+/* Hard on/off flash (no fading) to draw the eye once there's unsaved
+   drawing -- matches the rest of the app's snap-not-smooth motion. */
+@keyframes save-blink {
+  0%, 49% {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  50%, 100% {
+    background: #fff8d0;
+    border-color: #fff8d0;
+  }
+}
+
+.blink {
+  animation: save-blink 0.5s steps(1) infinite;
+}
+
 #name-input {
   flex: 1;
   min-width: 140px;
@@ -343,6 +454,44 @@ button, input {
   color: var(--text);
   padding: 9px 12px;
   font-size: 0.85rem;
+}
+
+.capacity-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.capacity-gauge-label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.capacity-gauge-track {
+  height: 14px;
+  border: var(--px) solid var(--border);
+  background: var(--panel-2);
+  padding: 2px;
+}
+
+.capacity-gauge-fill {
+  height: 100%;
+  width: 0%;
+}
+
+.capacity-gauge-fill.ok {
+  background: var(--accent-2);
+}
+
+.capacity-gauge-fill.warn {
+  background: var(--accent);
+}
+
+.capacity-gauge-fill.danger {
+  background: var(--danger);
 }
 
 .preview-wrap {

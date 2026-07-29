@@ -16,10 +16,46 @@
 
   <div class="top-right-controls">
     <button id="mute-btn" class="pixel-btn" type="button">音: ON</button>
+    <button id="chroma-btn" class="pixel-btn" type="button">クロマキー</button>
     <a href="editor.html" class="edit-link pixel-btn">花火をつくる</a>
   </div>
 
   <div id="launch-count" class="launch-count pixel-btn">0 発</div>
+
+  <div id="announce-modal" class="modal-overlay" hidden>
+    <div class="modal-panel">
+      <h2 class="modal-title">2026/07/29アップデート！</h2>
+      <p class="modal-hint">
+        新機能を追加しました！<br>
+        ・QR機能: 花火のレシピをQRコードで書き出し&読み込みできるように（エディタ画面）<br>
+        ・クロマキー機能: 背景を単色にして、花火だけを撮影・合成しやすく（右上のボタン）
+      </p>
+      <div class="modal-actions">
+        <button id="announce-ok-btn" class="primary-btn pixel-btn" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chroma-modal" class="modal-overlay" hidden>
+    <div class="modal-panel">
+      <h2 class="modal-title">背景色を選択</h2>
+      <div id="chroma-palette" class="chroma-palette">
+        <button class="chroma-swatch pixel-btn active" data-color="#00ff00" style="background:#00ff00" type="button" title="緑"></button>
+        <button class="chroma-swatch pixel-btn" data-color="#000000" style="background:#000000" type="button" title="黒"></button>
+        <button class="chroma-swatch pixel-btn" data-color="#ffffff" style="background:#ffffff" type="button" title="白"></button>
+        <button class="chroma-swatch pixel-btn" data-color="#ff0000" style="background:#ff0000" type="button" title="赤"></button>
+        <button class="chroma-swatch pixel-btn" data-color="#0000ff" style="background:#0000ff" type="button" title="青"></button>
+        <button class="chroma-swatch pixel-btn" data-color="#ff00ff" style="background:#ff00ff" type="button" title="マゼンタ"></button>
+        <button class="chroma-swatch pixel-btn" data-color="#00ffff" style="background:#00ffff" type="button" title="シアン"></button>
+        <input type="color" id="chroma-custom-color" value="#00ff00" title="カスタムカラー">
+      </div>
+      <p class="modal-hint">OKを押すと、ボタン・星・月が隠れて背景色と花火だけになるよ。画面をもう一度押すと元に戻るよ。</p>
+      <div class="modal-actions">
+        <button id="chroma-cancel-btn" class="ghost-btn pixel-btn" type="button">キャンセル</button>
+        <button id="chroma-ok-btn" class="primary-btn pixel-btn" type="button">OK</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="js/sky.js"></script>
 </body>

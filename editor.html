@@ -54,6 +54,16 @@
         <button id="preview-btn" class="ghost-btn pixel-btn" type="button">プレビュー</button>
       </div>
 
+      <div class="capacity-gauge">
+        <div class="capacity-gauge-label">
+          <span>レシピQRの容量</span>
+          <span id="capacity-gauge-text">0%</span>
+        </div>
+        <div class="capacity-gauge-track">
+          <div id="capacity-gauge-fill" class="capacity-gauge-fill ok"></div>
+        </div>
+      </div>
+
       <div class="preview-wrap">
         <canvas id="preview-canvas"></canvas>
       </div>
@@ -62,10 +72,29 @@
     <section class="gallery-section">
       <div class="gallery-header">
         <h2>保存済みの花火</h2>
+        <div class="gallery-header-actions">
+          <button id="import-recipe-btn" class="ghost-btn pixel-btn" type="button">QRを読み込む</button>
+          <input type="file" id="import-recipe-input" accept="image/*" hidden>
+        </div>
       </div>
       <div id="gallery" class="gallery"></div>
     </section>
   </main>
+
+  <div id="recipe-modal" class="modal-overlay" hidden>
+    <div class="modal-panel">
+      <h2 class="modal-title" id="recipe-modal-title">レシピ</h2>
+      <canvas id="recipe-qr-canvas"></canvas>
+      <p class="modal-hint">
+        スマホのカメラで読み取ると、開くだけでこの花火が反映されます。
+        PCの場合は画像として保存し、「QRを読み込む」からアップロードしてください。
+      </p>
+      <div class="modal-actions">
+        <button id="recipe-download-btn" class="ghost-btn pixel-btn" type="button">画像を保存</button>
+        <button id="recipe-close-btn" class="primary-btn pixel-btn" type="button">閉じる</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="js/editor.js"></script>
 </body>

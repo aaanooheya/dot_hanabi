@@ -2,6 +2,12 @@ import { getFireworks } from './storage.js';
 import { Firework } from './firework.js';
 import { unlockAudio, initMuteButton, playExplosionBoom } from './sound.js';
 
+// A recipe QR points at the site root (to keep the URL short), so a scan
+// lands here first; hand off to the editor, which knows how to import it.
+if (location.hash.length > 1) {
+  location.replace('editor.html' + location.hash);
+}
+
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
@@ -11,12 +17,70 @@ initMuteButton(document.getElementById('mute-btn'));
 window.addEventListener('pointerdown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
 
+// One-time announcement for newly added features, shown on first visit
+// after this update and never again (tracked via a localStorage flag).
+const ANNOUNCE_KEY = 'hanabi_seen_announce_qr_chroma';
+const announceModal = document.getElementById('announce-modal');
+if (!localStorage.getItem(ANNOUNCE_KEY)) {
+  announceModal.hidden = false;
+}
+document.getElementById('announce-ok-btn').addEventListener('click', () => {
+  localStorage.setItem(ANNOUNCE_KEY, '1');
+  announceModal.hidden = true;
+});
+
 const launchCountEl = document.getElementById('launch-count');
 let launchCount = 0;
 function bumpLaunchCount() {
   launchCount += 1;
   launchCountEl.textContent = `${launchCount} 発`;
 }
+
+// Chroma key mode: hides all UI, stars, and the moon, leaving just a flat
+// background color behind the fireworks (for keying out in a video editor).
+// Tapping anywhere on the sky while active turns it back off.
+const chromaBtn = document.getElementById('chroma-btn');
+const chromaModal = document.getElementById('chroma-modal');
+const chromaOkBtn = document.getElementById('chroma-ok-btn');
+const chromaCancelBtn = document.getElementById('chroma-cancel-btn');
+const chromaCustomColor = document.getElementById('chroma-custom-color');
+const chromaSwatchButtons = Array.from(document.querySelectorAll('.chroma-swatch'));
+
+let chromaKeyActive = false;
+let chromaKeyColor = chromaCustomColor.value;
+let selectedChromaColor = chromaCustomColor.value;
+
+function selectChromaSwatch(color) {
+  selectedChromaColor = color;
+  chromaSwatchButtons.forEach((b) => b.classList.toggle('active', b.dataset.color === color));
+}
+
+chromaSwatchButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    selectChromaSwatch(btn.dataset.color);
+    chromaCustomColor.value = btn.dataset.color;
+  });
+});
+
+chromaCustomColor.addEventListener('input', (e) => {
+  selectedChromaColor = e.target.value;
+  chromaSwatchButtons.forEach((b) => b.classList.remove('active'));
+});
+
+chromaBtn.addEventListener('click', () => {
+  chromaModal.hidden = false;
+});
+
+chromaCancelBtn.addEventListener('click', () => {
+  chromaModal.hidden = true;
+});
+
+chromaOkBtn.addEventListener('click', () => {
+  chromaKeyColor = selectedChromaColor;
+  chromaKeyActive = true;
+  chromaModal.hidden = true;
+  document.body.classList.add('chroma-active');
+});
 
 const STAR_TWINKLE_STEP = 0.45; // seconds between twinkle brightness changes
 const STAR_LEVELS = 4; // discrete star brightness bands
@@ -98,6 +162,11 @@ function launchRandom(xOverride, yOverride) {
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
+  if (chromaKeyActive) {
+    chromaKeyActive = false;
+    document.body.classList.remove('chroma-active');
+    return;
+  }
   if (!designs.length) return;
   const y = Math.min(Math.max(e.clientY, height * 0.08), height * 0.85);
   launchRandom(e.clientX, y);
@@ -140,19 +209,24 @@ function frame(now) {
   const dt = Math.min((now - lastTime) / 1000, 0.05);
   lastTime = now;
 
-  ctx.fillStyle = '#060a1a';
-  ctx.fillRect(0, 0, width, height);
+  if (chromaKeyActive) {
+    ctx.fillStyle = chromaKeyColor;
+    ctx.fillRect(0, 0, width, height);
+  } else {
+    ctx.fillStyle = '#060a1a';
+    ctx.fillRect(0, 0, width, height);
 
-  for (const s of stars) {
-    const steppedT = Math.floor((now / 1000 / STAR_TWINKLE_STEP) * s.speed + s.seed);
-    const band = Math.abs(steppedT) % STAR_LEVELS;
-    ctx.globalAlpha = 0.35 + (band / (STAR_LEVELS - 1)) * 0.65;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(s.x - s.size / 2, s.y - s.size / 2, s.size, s.size);
+    for (const s of stars) {
+      const steppedT = Math.floor((now / 1000 / STAR_TWINKLE_STEP) * s.speed + s.seed);
+      const band = Math.abs(steppedT) % STAR_LEVELS;
+      ctx.globalAlpha = 0.35 + (band / (STAR_LEVELS - 1)) * 0.65;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(s.x - s.size / 2, s.y - s.size / 2, s.size, s.size);
+    }
+    ctx.globalAlpha = 1;
+
+    drawMoon(now);
   }
-  ctx.globalAlpha = 1;
-
-  drawMoon(now);
 
   if (designs.length) {
     launchTimer += dt;

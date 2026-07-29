@@ -2,6 +2,13 @@ import { PALETTE, createEmptyGrid, drawGridToCanvas } from './pixel-grid.js';
 import { getFireworks, getFirework, saveFirework, deleteFirework, generateId } from './storage.js';
 import { Firework } from './firework.js';
 import { unlockAudio, initMuteButton, playExplosionBoom } from './sound.js';
+import { encodeRecipe, decodeRecipe } from './recipe.js';
+import { bytesToBase64Url, base64UrlToBytes } from './base64url.js';
+import { encodeQrMatrix } from './qr/encode.js';
+import { renderQrToCanvas } from './qr/render.js';
+import { readQrFromImage } from './qr/read-image.js';
+import { renderDesignToCanvas } from './design-thumbnail.js';
+import { dataCapacityBytes } from './qr/tables.js';
 
 initMuteButton(document.getElementById('mute-btn'));
 window.addEventListener('pointerdown', unlockAudio);
@@ -21,6 +28,54 @@ let undoStack = [];
 let redoStack = [];
 let moveStartSnapshot = null;
 let moveStartCell = null;
+
+// Blinks the save button whenever there's drawn content that hasn't been
+// saved yet, so it's obvious you still need to press it.
+const saveBtn = document.getElementById('save-btn');
+let dirty = false;
+function updateSaveBlink() {
+  saveBtn.classList.toggle('blink', dirty && grid.flat().some(Boolean));
+}
+
+// Recipe QR capacity gauge: mirrors buildRecipeUrl()'s output length against
+// the largest QR version we support (27), so a design that's grown too big
+// to fit shows red *before* pressing "レシピ" and hitting the QR error.
+const MAX_RECIPE_URL_BYTES = dataCapacityBytes(27) - 2;
+const capacityFill = document.getElementById('capacity-gauge-fill');
+const capacityText = document.getElementById('capacity-gauge-text');
+
+function currentRecipeUrlByteLength() {
+  const name = document.getElementById('name-input').value.trim() || '無題の花火';
+  const recipeBytes = encodeRecipe({ name, size, pixels: grid });
+  const code = bytesToBase64Url(recipeBytes);
+  const dirPath = location.pathname.replace(/[^/]*$/, '');
+  return new TextEncoder().encode(`${location.origin}${dirPath}#${code}`).length;
+}
+
+function updateCapacityGauge() {
+  if (!grid.flat().some(Boolean)) {
+    capacityFill.style.width = '0%';
+    capacityFill.className = 'capacity-gauge-fill ok';
+    capacityText.textContent = '0%';
+    return;
+  }
+  let bytes;
+  try {
+    bytes = currentRecipeUrlByteLength();
+  } catch (err) {
+    capacityFill.style.width = '100%';
+    capacityFill.className = 'capacity-gauge-fill danger';
+    capacityText.textContent = err.message || '容量オーバー';
+    return;
+  }
+  const rawPercent = (bytes / MAX_RECIPE_URL_BYTES) * 100;
+  const over = rawPercent > 100;
+  capacityFill.style.width = `${Math.min(100, rawPercent)}%`;
+  capacityFill.className = 'capacity-gauge-fill' + (over ? ' danger' : rawPercent >= 80 ? ' warn' : ' ok');
+  capacityText.textContent = over
+    ? `容量オーバー (${bytes}/${MAX_RECIPE_URL_BYTES}バイト)`
+    : `${Math.round(rawPercent)}% (${bytes}/${MAX_RECIPE_URL_BYTES}バイト)`;
+}
 
 const gridCanvas = document.getElementById('grid-canvas');
 const gridCtx = gridCanvas.getContext('2d');
@@ -90,6 +145,9 @@ function undo() {
   redoStack.push(snapshotGrid());
   grid = undoStack.pop();
   updateHistoryButtons();
+  dirty = true;
+  updateSaveBlink();
+  updateCapacityGauge();
   renderGrid();
 }
 
@@ -98,6 +156,9 @@ function redo() {
   undoStack.push(snapshotGrid());
   grid = redoStack.pop();
   updateHistoryButtons();
+  dirty = true;
+  updateSaveBlink();
+  updateCapacityGauge();
   renderGrid();
 }
 
@@ -129,6 +190,9 @@ function setSize(newSize) {
   grid = createEmptyGrid(size);
   currentId = null;
   resetHistory();
+  dirty = false;
+  updateSaveBlink();
+  updateCapacityGauge();
   document.getElementById('name-input').value = '';
   document.querySelectorAll('.size-btn').forEach((b) => {
     b.classList.toggle('active', Number(b.dataset.size) === size);
@@ -163,6 +227,9 @@ function cellFromEvent(e) {
 function paintAt(e) {
   const { gx, gy } = cellFromEvent(e);
   paintCell(gx, gy, tool === 'erase' ? null : currentColor);
+  dirty = true;
+  updateSaveBlink();
+  updateCapacityGauge();
   renderGrid();
 }
 
@@ -217,6 +284,9 @@ window.addEventListener('pointerup', (e) => {
       redoStack.length = 0;
       updateHistoryButtons();
       grid = shiftGrid(moveStartSnapshot, size, dx, dy);
+      dirty = true;
+      updateSaveBlink();
+      updateCapacityGauge();
     }
     renderGrid();
   }
@@ -304,11 +374,16 @@ document.getElementById('symmetry-toggle').addEventListener('change', (e) => {
   symmetry = e.target.checked;
 });
 
+document.getElementById('name-input').addEventListener('input', updateCapacityGauge);
+
 document.getElementById('clear-btn').addEventListener('click', () => {
   if (!grid.flat().some(Boolean)) return;
   if (!confirm('キャンバスをクリアしますか？')) return;
   pushHistory();
   grid = createEmptyGrid(size);
+  dirty = false;
+  updateSaveBlink();
+  updateCapacityGauge();
   renderGrid();
 });
 
@@ -377,6 +452,8 @@ document.getElementById('save-btn').addEventListener('click', () => {
   saveFirework(fw);
   currentId = fw.id;
   nameInput.value = name;
+  dirty = false;
+  updateSaveBlink();
   renderGallery();
 });
 
@@ -428,6 +505,11 @@ function renderGallery() {
       editBtn.className = 'pixel-btn';
       editBtn.addEventListener('click', () => loadDesign(fw));
 
+      const recipeBtn = document.createElement('button');
+      recipeBtn.textContent = 'QR';
+      recipeBtn.className = 'pixel-btn';
+      recipeBtn.addEventListener('click', () => showRecipeModal(fw));
+
       const delBtn = document.createElement('button');
       delBtn.textContent = '削除';
       delBtn.className = 'danger pixel-btn';
@@ -438,7 +520,7 @@ function renderGallery() {
         renderGallery();
       });
 
-      actions.append(editBtn, delBtn);
+      actions.append(editBtn, recipeBtn, delBtn);
       card.append(thumb, title, meta, launchToggle, actions);
       galleryEl.appendChild(card);
     });
@@ -449,6 +531,9 @@ function loadDesign(fw) {
   grid = fw.pixels.map((row) => row.slice());
   currentId = fw.id;
   resetHistory();
+  dirty = false;
+  updateSaveBlink();
+  updateCapacityGauge();
   document.getElementById('name-input').value = fw.name;
   document.querySelectorAll('.size-btn').forEach((b) => {
     b.classList.toggle('active', Number(b.dataset.size) === size);
@@ -457,4 +542,117 @@ function loadDesign(fw) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Recipe: a QR code that carries the design as a URL (?d= became a hash
+// fragment to save a few bytes -- see recipe.js). Scanning it with a phone
+// opens the site and imports automatically; the same image can be
+// uploaded back into "QRを読み込む" on a PC.
+function buildRecipeUrl(fw) {
+  const recipeBytes = encodeRecipe(fw);
+  const code = bytesToBase64Url(recipeBytes);
+  const dirPath = location.pathname.replace(/[^/]*$/, '');
+  return `${location.origin}${dirPath}#${code}`;
+}
+
+const recipeModal = document.getElementById('recipe-modal');
+const recipeModalTitle = document.getElementById('recipe-modal-title');
+const recipeQrCanvas = document.getElementById('recipe-qr-canvas');
+let recipeDownloadName = 'hanabi';
+
+function showRecipeModal(fw) {
+  let url;
+  try {
+    url = buildRecipeUrl(fw);
+    const matrix = encodeQrMatrix(url);
+    const logo = renderDesignToCanvas(fw, 120);
+    renderQrToCanvas(recipeQrCanvas, matrix, 300, logo, 0.28);
+  } catch (err) {
+    alert(err.message || 'QRコードを作成できませんでした');
+    return;
+  }
+  recipeModalTitle.textContent = `「${fw.name}」のレシピ`;
+  recipeDownloadName = (fw.name || 'hanabi').replace(/[\\/:*?"<>|]/g, '_').trim() || 'hanabi';
+  recipeModal.hidden = false;
+}
+
+document.getElementById('recipe-close-btn').addEventListener('click', () => {
+  recipeModal.hidden = true;
+});
+
+document.getElementById('recipe-download-btn').addEventListener('click', () => {
+  const url = recipeQrCanvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${recipeDownloadName}-recipe.png`;
+  a.click();
+});
+
+function saveImportedDesign(decoded) {
+  const fw = {
+    id: generateId(),
+    name: decoded.name,
+    size: decoded.size,
+    pixels: decoded.pixels,
+    enabled: true,
+    createdAt: new Date().toISOString(),
+  };
+  saveFirework(fw);
+  renderGallery();
+  loadDesign(fw);
+  alert(`「${fw.name}」を読み込んで保存しました。`);
+}
+
+function importFromRecipeCode(code) {
+  let decoded;
+  try {
+    decoded = decodeRecipe(base64UrlToBytes(code));
+  } catch (err) {
+    alert(err.message || 'レシピの読み込みに失敗しました');
+    return;
+  }
+  saveImportedDesign(decoded);
+}
+
+const importRecipeInput = document.getElementById('import-recipe-input');
+document.getElementById('import-recipe-btn').addEventListener('click', () => {
+  importRecipeInput.click();
+});
+importRecipeInput.addEventListener('change', async () => {
+  const file = importRecipeInput.files[0];
+  importRecipeInput.value = '';
+  if (!file) return;
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const el = new Image();
+      el.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(el);
+      };
+      el.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('画像を読み込めませんでした'));
+      };
+      el.src = url;
+    });
+    const url = readQrFromImage(img);
+    const hashIndex = url.indexOf('#');
+    if (hashIndex === -1) throw new Error('このQRコードにはレシピが含まれていません');
+    importFromRecipeCode(url.slice(hashIndex + 1));
+  } catch (err) {
+    alert(err.message || 'QRコードを読み取れませんでした');
+  }
+});
+
+// If this page was opened via a recipe QR (site root, hash = code),
+// import it automatically and clear the hash so a later reload/share of
+// this exact URL doesn't repeat it.
+function tryAutoImportFromHash() {
+  const code = location.hash.slice(1);
+  if (!code) return;
+  history.replaceState({}, '', location.pathname + location.search);
+  importFromRecipeCode(code);
+}
+
 renderGallery();
+tryAutoImportFromHash();
+updateCapacityGauge();
