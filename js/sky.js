@@ -17,17 +17,39 @@ initMuteButton(document.getElementById('mute-btn'));
 window.addEventListener('pointerdown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
 
-// One-time announcement for newly added features, shown on first visit
-// after this update and never again (tracked via a localStorage flag).
-const ANNOUNCE_KEY = 'hanabi_seen_announce_qr_chroma';
-const announceModal = document.getElementById('announce-modal');
-if (!localStorage.getItem(ANNOUNCE_KEY)) {
-  announceModal.hidden = false;
+// One-time announcements for newly added features, shown on first visit
+// after each update and never again (tracked via a localStorage flag per
+// announcement). Chained so a brand-new visitor sees them in order, one
+// at a time, instead of all at once.
+function initAnnouncement(key, modalId, okBtnId, onDismiss) {
+  const modal = document.getElementById(modalId);
+  document.getElementById(okBtnId).addEventListener('click', () => {
+    localStorage.setItem(key, '1');
+    modal.hidden = true;
+    if (onDismiss) onDismiss();
+  });
+  return () => {
+    if (localStorage.getItem(key)) return false;
+    modal.hidden = false;
+    return true;
+  };
 }
-document.getElementById('announce-ok-btn').addEventListener('click', () => {
-  localStorage.setItem(ANNOUNCE_KEY, '1');
-  announceModal.hidden = true;
-});
+
+const showSymmetryAlertAnnounce = initAnnouncement(
+  'hanabi_seen_announce_symmetry_alert',
+  'announce-modal-2',
+  'announce-ok-btn-2'
+);
+const showQrChromaAnnounce = initAnnouncement(
+  'hanabi_seen_announce_qr_chroma',
+  'announce-modal',
+  'announce-ok-btn',
+  showSymmetryAlertAnnounce
+);
+
+if (!showQrChromaAnnounce()) {
+  showSymmetryAlertAnnounce();
+}
 
 const launchCountEl = document.getElementById('launch-count');
 let launchCount = 0;
