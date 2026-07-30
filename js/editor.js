@@ -18,7 +18,8 @@ const GRID_RESOLUTION = 450; // internal canvas pixels (square)
 
 let size = 15;
 let grid = createEmptyGrid(size);
-let symmetry = true;
+let symmetryPoint = true;
+let symmetryLine = false;
 let currentColor = PALETTE[0];
 let tool = 'paint'; // 'paint' | 'erase' | 'eyedropper' | 'move'
 let currentId = null;
@@ -36,6 +37,17 @@ let dirty = false;
 function updateSaveBlink() {
   saveBtn.classList.toggle('blink', dirty && grid.flat().some(Boolean));
 }
+
+// Warns before leaving (closing the tab, reloading, or following a link
+// like "戻る") while there's unsaved drawing. The browser shows its own
+// generic confirmation text -- custom messages here are ignored by every
+// modern browser, so returnValue is just set to trigger the prompt at all.
+window.addEventListener('beforeunload', (e) => {
+  if (dirty && grid.flat().some(Boolean)) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 // Recipe QR capacity gauge: mirrors buildRecipeUrl()'s output length against
 // the largest QR version we support (27), so a design that's grown too big
@@ -206,13 +218,24 @@ document.querySelectorAll('.size-btn').forEach((btn) => {
 
 function paintCell(gx, gy, color) {
   if (gx < 0 || gy < 0 || gx >= size || gy >= size) return;
-  grid[gy][gx] = color;
-  if (symmetry) {
-    const mx = size - 1 - gx;
-    const my = size - 1 - gy;
-    grid[gy][mx] = color;
-    grid[my][gx] = color;
-    grid[my][mx] = color;
+  const mx = size - 1 - gx;
+  const my = size - 1 - gy;
+
+  const cells = new Set([[gx, gy]].map(String));
+  if (symmetryPoint) {
+    // Full four-way mirror (both axes plus the 180-degree point), matching
+    // the original "点対称に描く" behavior.
+    cells.add(String([mx, gy]));
+    cells.add(String([gx, my]));
+    cells.add(String([mx, my]));
+  } else if (symmetryLine) {
+    // Left-right mirror only.
+    cells.add(String([mx, gy]));
+  }
+
+  for (const key of cells) {
+    const [x, y] = key.split(',').map(Number);
+    grid[y][x] = color;
   }
 }
 
@@ -370,8 +393,11 @@ customColorInput.addEventListener('input', (e) => {
   applyColorChange(e.target.value);
 });
 
-document.getElementById('symmetry-toggle').addEventListener('change', (e) => {
-  symmetry = e.target.checked;
+document.getElementById('symmetry-point').addEventListener('change', (e) => {
+  symmetryPoint = e.target.checked;
+});
+document.getElementById('symmetry-line').addEventListener('change', (e) => {
+  symmetryLine = e.target.checked;
 });
 
 document.getElementById('name-input').addEventListener('input', updateCapacityGauge);

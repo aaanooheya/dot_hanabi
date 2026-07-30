@@ -24,10 +24,17 @@
           <button class="size-btn pixel-btn active" data-size="15">15×15</button>
           <button class="size-btn pixel-btn" data-size="30">30×30</button>
         </div>
-        <label class="symmetry-label">
-          <input type="checkbox" id="symmetry-toggle" checked>
-          点対称に描く
-        </label>
+        <div class="symmetry-selector">
+          <span class="label">対称</span>
+          <label class="symmetry-label">
+            <input type="checkbox" id="symmetry-point" checked>
+            点対称
+          </label>
+          <label class="symmetry-label">
+            <input type="checkbox" id="symmetry-line">
+            線対称
+          </label>
+        </div>
       </div>
 
       <div class="canvas-wrap">
