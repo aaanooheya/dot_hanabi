@@ -8,7 +8,7 @@ import { encodeQrMatrix } from './qr/encode.js';
 import { renderQrToCanvas } from './qr/render.js';
 import { readQrFromImage } from './qr/read-image.js';
 import { renderDesignToCanvas } from './design-thumbnail.js';
-import { dataCapacityBytes } from './qr/tables.js';
+import { maxByteLength } from './qr/tables.js';
 
 initMuteButton(document.getElementById('mute-btn'));
 window.addEventListener('pointerdown', unlockAudio);
@@ -52,7 +52,7 @@ window.addEventListener('beforeunload', (e) => {
 // Recipe QR capacity gauge: mirrors buildRecipeUrl()'s output length against
 // the largest QR version we support (27), so a design that's grown too big
 // to fit shows red *before* pressing "レシピ" and hitting the QR error.
-const MAX_RECIPE_URL_BYTES = dataCapacityBytes(27) - 2;
+const MAX_RECIPE_URL_BYTES = maxByteLength(27);
 const capacityFill = document.getElementById('capacity-gauge-fill');
 const capacityText = document.getElementById('capacity-gauge-text');
 
@@ -617,11 +617,15 @@ document.getElementById('recipe-download-btn').addEventListener('click', async (
   const filename = `${recipeDownloadName}-recipe.png`;
 
   // Mobile browsers -- iOS Safari in particular -- largely ignore the <a
-  // download> attribute for a data: URL and silently do nothing. The Web
-  // Share API opens the OS's native share sheet instead, which reliably
-  // offers "Save Image" on phones; desktop browsers without file-sharing
-  // support fall through to the classic anchor download below.
-  if (navigator.canShare) {
+  // download> attribute for a data: URL and silently do nothing, so phones
+  // use the Web Share API instead (opens the OS share sheet, which reliably
+  // offers "Save Image"). PCs get a plain file download even when the
+  // browser technically supports navigator.share, since a share sheet isn't
+  // what "download" means there -- gated on a coarse (touch) pointer as a
+  // proxy for "this is a phone/tablet, not a desktop".
+  const isTouchPrimary = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+  if (isTouchPrimary && navigator.canShare) {
     try {
       const blob = await canvasToBlob(recipeQrCanvas);
       const file = new File([blob], filename, { type: 'image/png' });

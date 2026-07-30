@@ -3,6 +3,7 @@ import {
   VERSION_INFO_H,
   matrixSize,
   dataCapacityBytes,
+  maxByteLength,
   encodeFormatInfo,
   encodeVersionInfo,
   MASK_FUNCTIONS,
@@ -11,8 +12,7 @@ import { buildFunctionPatterns, placeFormatInfoBits, placeVersionInfoBits, dataM
 
 function pickVersion(byteLength) {
   for (let v = 1; v <= 27; v++) {
-    // -2 bytes of headroom for the mode/length/terminator overhead below.
-    if (dataCapacityBytes(v) - 2 >= byteLength) return v;
+    if (maxByteLength(v) >= byteLength) return v;
   }
   return null;
 }

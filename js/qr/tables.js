@@ -82,6 +82,15 @@ export function dataCapacityBytes(version) {
   return info.groups.reduce((sum, [count, dataCw]) => sum + count * dataCw, 0);
 }
 
+// Largest byte-mode payload (in bytes) that fits in `version`, accounting
+// for the byte-mode header: a 4-bit mode indicator plus an 8-bit (versions
+// 1-9) or 16-bit (versions 10+) character count. The terminator is left
+// out since encode.js's buildCodewords skips it whenever there's no room.
+export function maxByteLength(version) {
+  const countBits = version <= 9 ? 8 : 16;
+  return Math.floor((dataCapacityBytes(version) * 8 - 4 - countBits) / 8);
+}
+
 // ---- Format info (error correction level + mask pattern), 15 bits ----
 // BCH(15,5) generator 0x537, XOR mask 0x5412, error-correction-level bits
 // for H = "10".
