@@ -578,12 +578,38 @@ document.getElementById('recipe-close-btn').addEventListener('click', () => {
   recipeModal.hidden = true;
 });
 
-document.getElementById('recipe-download-btn').addEventListener('click', () => {
+function canvasToBlob(canvas) {
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+}
+
+document.getElementById('recipe-download-btn').addEventListener('click', async () => {
+  const filename = `${recipeDownloadName}-recipe.png`;
+
+  // Mobile browsers -- iOS Safari in particular -- largely ignore the <a
+  // download> attribute for a data: URL and silently do nothing. The Web
+  // Share API opens the OS's native share sheet instead, which reliably
+  // offers "Save Image" on phones; desktop browsers without file-sharing
+  // support fall through to the classic anchor download below.
+  if (navigator.canShare) {
+    try {
+      const blob = await canvasToBlob(recipeQrCanvas);
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+        return;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return; // user closed the share sheet
+    }
+  }
+
   const url = recipeQrCanvas.toDataURL('image/png');
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${recipeDownloadName}-recipe.png`;
+  a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  a.remove();
 });
 
 function saveImportedDesign(decoded) {
