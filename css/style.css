@@ -144,12 +144,11 @@ button, input {
   position: absolute;
   top: 18px;
   left: 18px;
-  background: var(--panel);
   color: var(--text);
-  padding: 10px 14px;
   font-size: 0.85rem;
   letter-spacing: 0.03em;
   cursor: default;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
 }
 
 #chroma-btn {
@@ -165,6 +164,30 @@ button, input {
 .chroma-active .launch-count,
 .chroma-active .overlay-message {
   display: none;
+}
+
+/* Narrow phones don't have room for "音: ON" + "クロマキー" + "花火をつくる"
+   on one line next to the launch count -- shrink the buttons and move the
+   count to the opposite corner so nothing overlaps. */
+@media (max-width: 480px) {
+  .top-right-controls {
+    top: 12px;
+    right: 12px;
+    gap: 6px;
+  }
+
+  #mute-btn,
+  #chroma-btn,
+  .edit-link {
+    padding: 7px 9px;
+    font-size: 0.7rem;
+  }
+
+  .launch-count {
+    top: auto;
+    bottom: 18px;
+    left: 12px;
+  }
 }
 
 .modal-overlay {
