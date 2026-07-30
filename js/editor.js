@@ -381,6 +381,11 @@ document.getElementById('clear-btn').addEventListener('click', () => {
   if (!confirm('キャンバスをクリアしますか？')) return;
   pushHistory();
   grid = createEmptyGrid(size);
+  // Clearing means "start a new design" -- otherwise the next save would
+  // overwrite whatever was previously loaded/saved in this session instead
+  // of creating a separate entry.
+  currentId = null;
+  document.getElementById('name-input').value = '';
   dirty = false;
   updateSaveBlink();
   updateCapacityGauge();
